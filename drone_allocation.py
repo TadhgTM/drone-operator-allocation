@@ -5,24 +5,10 @@ drone_allocation.py — Computational Component
 Risk-Constrained Operator Allocation for Autonomous Drone Swarms:
 A Stochastic Framework for Multi-Zone Command and Control
 
-This module implements:
-  1. Exact binomial overload-probability calculations
-  2. Multi-zone generalization via convolution
-  3. Risk-constrained fleet-size optimization (binary search)
-  4. Centralized vs. decentralized pooling comparison
-  5. Parametric sensitivity analysis
-  6. Monte Carlo simulation for validation
-  7. Publication-quality figures and formatted tables
+Notes:
+- Hardware tested on: Macbook Pro (M5, 24GB RAM, 2025)
+- Last updated: Nov 2025
 
-Usage:
-    python drone_allocation.py --all
-    python drone_allocation.py --tables
-    python drone_allocation.py --figures
-    python drone_allocation.py --monte-carlo
-    python drone_allocation.py --all --lambda-day 0.20 --tau 15 --zones 3 --flex 2 --theta 0.005
-
-Author: Tadhg Taylor-McGreal
-Date:   February 2026
 """
 
 import argparse
@@ -36,14 +22,12 @@ from scipy import stats
 import pandas as pd
 
 import matplotlib
-matplotlib.use("Agg")  # non-interactive backend for server/CI use
+matplotlib.use("Agg")  
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
 # ═══════════════════════════════════════════════════════════════
 # 1. CONFIGURATION
-# ═══════════════════════════════════════════════════════════════
-
 @dataclass
 class SystemConfig:
     """Configuration for a multi-zone autonomous drone C2 system."""
@@ -88,8 +72,6 @@ class SystemConfig:
 
 # ═══════════════════════════════════════════════════════════════
 # 2. CORE PROBABILITY FUNCTIONS
-# ═══════════════════════════════════════════════════════════════
-
 def intervention_probability(lambda_day: float, tau_minutes: float) -> float:
     """
     Convert daily acquisition probability λ to per-window probability p.
@@ -175,8 +157,6 @@ def overload_prob_centralized(n_total: int, p: float,
 
 # ═══════════════════════════════════════════════════════════════
 # 3. FLEET-SIZE OPTIMIZATION
-# ═══════════════════════════════════════════════════════════════
-
 def max_drones_per_zone(p: float, n_zones: int = 2,
                         n_flex: int = 1, theta: float = 0.01) -> int:
     """
@@ -226,8 +206,6 @@ def max_drones_centralized(p: float, n_operators: int,
 
 # ═══════════════════════════════════════════════════════════════
 # 4. DAILY RISK AGGREGATION
-# ═══════════════════════════════════════════════════════════════
-
 def daily_overload_probability(n_per_zone: int, lambda_day: float,
                                 tau_minutes: float, n_zones: int,
                                 n_flex: int) -> float:
@@ -244,8 +222,6 @@ def daily_overload_probability(n_per_zone: int, lambda_day: float,
 
 # ═══════════════════════════════════════════════════════════════
 # 5. MONTE CARLO SIMULATION
-# ═══════════════════════════════════════════════════════════════
-
 def monte_carlo_overload(n_per_zone: int, p: float,
                          n_zones: int, n_flex: int,
                          n_sims: int = 1_000_000,
@@ -267,8 +243,6 @@ def monte_carlo_overload(n_per_zone: int, p: float,
 
 # ═══════════════════════════════════════════════════════════════
 # 6. ANALYSIS / TABLE GENERATION
-# ═══════════════════════════════════════════════════════════════
-
 def baseline_demand_table(cfg: SystemConfig, n: int) -> pd.DataFrame:
     """Probability distribution of intervention demand for a single zone."""
     p = cfg.p_window
@@ -395,8 +369,6 @@ def monte_carlo_validation_table(cfg: SystemConfig,
 
 # ═══════════════════════════════════════════════════════════════
 # 7. FIGURE GENERATION
-# ═══════════════════════════════════════════════════════════════
-
 FIGURE_DIR = "figures"
 COLORS = ["#2171b5", "#e6550d", "#31a354", "#756bb1", "#d62728"]
 
@@ -616,8 +588,6 @@ def plot_daily_risk_surface(cfg: SystemConfig):
 
 # ═══════════════════════════════════════════════════════════════
 # 8. PRINTING HELPERS
-# ═══════════════════════════════════════════════════════════════
-
 def _header(title: str):
     w = 60
     print()
@@ -668,8 +638,6 @@ def print_monte_carlo(cfg: SystemConfig, n_sims: int = 1_000_000):
 
 # ═══════════════════════════════════════════════════════════════
 # 9. MAIN
-# ═══════════════════════════════════════════════════════════════
-
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Risk-Constrained Operator Allocation for "
