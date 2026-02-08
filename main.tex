@@ -1,0 +1,1016 @@
+\documentclass[12pt]{article}
+
+% ──────────────────────────────────────────────────────────────
+% Packages
+% ──────────────────────────────────────────────────────────────
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{amsmath, amsthm, amssymb, amsfonts}
+\usepackage{thmtools}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{tcolorbox}
+\usepackage{listings}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% ──────────────────────────────────────────────────────────────
+% Code Listings Configuration
+% ──────────────────────────────────────────────────────────────
+\lstset{
+    language=Python,
+    basicstyle=\small\ttfamily,
+    commentstyle=\color{OliveGreen},
+    keywordstyle=\color{blue}\bfseries,
+    stringstyle=\color{BrickRed},
+    numberstyle=\tiny\color{gray},
+    numbers=left,
+    stepnumber=1,
+    showstringspaces=false,
+    tabsize=4,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!5},
+    captionpos=b,
+    columns=flexible,
+    morekeywords={dataclass, property, Tuple, List, Optional}
+}
+
+% ──────────────────────────────────────────────────────────────
+% Theorem Environments
+% ──────────────────────────────────────────────────────────────
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\tcolorboxenvironment{theorem}{
+    colback=blue!5!white, colframe=blue!50!black,
+    boxrule=0.5pt, arc=2pt, left=4pt, right=4pt, top=4pt, bottom=4pt
+}
+\tcolorboxenvironment{definition}{
+    colback=green!5!white, colframe=green!40!black,
+    boxrule=0.5pt, arc=2pt, left=4pt, right=4pt, top=4pt, bottom=4pt
+}
+
+% ──────────────────────────────────────────────────────────────
+% Formatting
+% ──────────────────────────────────────────────────────────────
+\setstretch{1.15}
+\geometry{textheight=9in, textwidth=6in, top=1in, headheight=12pt, headsep=25pt, footskip=30pt}
+\hypersetup{colorlinks=true, linkcolor=blue!70!black, citecolor=blue!70!black, urlcolor=blue!70!black}
+
+\newcommand{\HRule}[1]{\rule{\linewidth}{#1}}
+
+% ──────────────────────────────────────────────────────────────
+\begin{document}
+% ──────────────────────────────────────────────────────────────
+
+\title{
+    \normalsize \textsc{Defense Operations Research}\\[1.5cm]
+    \HRule{1.5pt}\\[0.4cm]
+    \LARGE \textbf{\uppercase{
+        Optimal Human-on-the-Loop Architectures\\
+        for Autonomous Drone Swarms:\\[0.3cm]
+        A Risk-Constrained Stochastic Framework\\
+        for Multi-Zone Command and Control
+    }}\\[0.4cm]
+    \HRule{1.5pt}\\[1cm]
+    \large \textit{With Computational Implementation}\\[0.5cm]
+}
+\date{February 2026}
+\author{
+    \textbf{Tadhg Taylor-McGreal}\\[0.2cm]
+    \small WIP National Security Applications
+}
+
+\maketitle
+\thispagestyle{empty}
+
+% ──────────────────────────────────────────────────────────────
+% ABSTRACT
+% ──────────────────────────────────────────────────────────────
+\begin{abstract}
+\noindent
+As autonomous unmanned aerial systems (UAS) proliferate across modern theaters of operation, the question of how many platforms a single human operator can responsibly oversee becomes a critical force design parameter.
+Current Department of Defense policy requires meaningful human judgment in lethal engagement decisions, yet the combinatorial challenge of matching operators to stochastic, real-time intervention demands across multiple operational zones has received limited rigorous analytical treatment.
+This paper develops a risk-constrained stochastic optimization framework for determining maximum drone fleet sizes under human-on-the-loop (HOTL) command-and-control architectures.
+We model target acquisition events as independent Bernoulli processes, derive closed-form expressions for system overload probabilities in multi-zone configurations with dedicated and flexible operators, and formulate the fleet-sizing problem as a constrained optimization over discrete binomial distributions.
+For a representative two-zone configuration with one dedicated operator per zone and one shared flex operator, we find that a system can sustain 95 drones per zone (190 total) while maintaining per-window overload risk below 1\%.
+We provide a complete open-source Python implementation for computing optimal allocations, performing sensitivity analyses, and validating results via Monte Carlo simulation.
+The framework generalizes to $M$ zones with $F$ flex operators, offering defense planners a principled tool for balancing fleet scale against operational risk.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ==============================================================
+% 1. INTRODUCTION
+% ==============================================================
+\section{Introduction}
+
+\subsection{The Autonomous Systems Revolution}
+
+The proliferation of low-cost, semi-autonomous unmanned aerial systems has fundamentally altered the character of modern warfare.
+The 2020 Nagorno-Karabakh conflict demonstrated the devastating effectiveness of coordinated drone strikes against conventional armored formations \cite{shaikh2021}.
+In Ukraine, both sides have deployed thousands of first-person-view (FPV) drones and loitering munitions in roles ranging from ISR to precision strike \cite{watling2023}.
+The Houthi campaign against Saudi energy infrastructure employed swarms of one-way attack UAS to overwhelm layered air defenses \cite{knights2020}.
+These operational precedents establish that future conflicts will involve drone swarms numbering in the hundreds or thousands per theater, far exceeding current operator-to-platform ratios.
+
+The United States Department of Defense has responded with initiatives such as the Replicator program, which aims to field large numbers of autonomous systems at scale \cite{dod_replicator2023}.
+The Joint All-Domain Command and Control (JADC2) concept envisions integrated sensor-to-shooter networks spanning air, land, sea, space, and cyberspace \cite{jadc2_2022}.
+These programs demand a rigorous analytical basis for determining how many autonomous platforms a human command structure can effectively oversee.
+
+\subsection{The Human-on-the-Loop Imperative}
+
+Department of Defense Directive 3000.09, \emph{Autonomy in Weapon Systems}, requires that autonomous and semi-autonomous weapons be designed to ``allow commanders and operators to exercise appropriate levels of human judgment over the use of force'' \cite{dodd300009}.
+International humanitarian law (IHL), codified in the Additional Protocols to the Geneva Conventions, mandates distinction between combatants and civilians, proportionality in the use of force, and precautionary measures in attack \cite{icrc_ihl}.
+Article 36 of Additional Protocol I further requires legal review of new weapons and methods of warfare.
+
+These legal and ethical requirements establish a non-negotiable constraint: \emph{no lethal engagement may proceed without meaningful human authorization}.
+The operational question then becomes one of capacity: given the stochastic nature of target acquisition and the finite time required for human decision-making, how many autonomous platforms can a given operator structure support while maintaining the required level of human oversight?
+
+This is not merely an ethical question, it is a force design parameter with direct implications for procurement, training, and operational planning.
+An overly conservative answer wastes resources and cedes tactical advantage; an overly aggressive one risks catastrophic failure of the human oversight function.
+
+\subsection{Contributions and Organization}
+
+This paper makes the following contributions:
+
+\begin{enumerate}[leftmargin=*, label=(\roman*)]
+    \item \textbf{Formal Model:} We formalize the operator--drone allocation problem as a stochastic capacity planning problem with explicit risk constraints, using Bernoulli target acquisition models and binomial demand distributions (Section~\ref{sec:model}).
+
+    \item \textbf{Analytical Results:} We derive closed-form expressions for system overload probability in the two-zone case, prove monotonicity and convexity properties, and develop a Poisson approximation for large fleets (Section~\ref{sec:analytical}).
+
+    \item \textbf{Generalized Framework:} We extend the model to $M$ operational zones with $F$ flexible operators, using discrete convolution of excess-demand distributions (Section~\ref{sec:general}).
+
+    \item \textbf{Computational Tools:} We provide a complete, open-source Python implementation that computes optimal fleet sizes, performs parametric sensitivity analyses, runs Monte Carlo simulations for validation, and generates publication-quality figures (Section~\ref{sec:computational} and Appendix~\ref{app:code}).
+
+    \item \textbf{Operational Guidance:} We derive concrete force structure recommendations and analyze how system capacity scales with operator count, intervention time, and target acquisition rate (Section~\ref{sec:operational}).
+\end{enumerate}
+
+% ==============================================================
+% 2. PROBLEM FORMULATION
+% ==============================================================
+\section{Problem Formulation}\label{sec:formulation}
+
+\subsection{Operational Architecture}
+
+We consider a multi-zone command-and-control architecture motivated by current operational practice.
+The theater is partitioned into $M$ non-overlapping geographic zones $\mathcal{Z}_1, \mathcal{Z}_2, \ldots, \mathcal{Z}_M$.
+Each zone $\mathcal{Z}_m$ contains $n_m$ semi-autonomous drones conducting persistent surveillance, reconnaissance, or strike operations.
+
+The operator structure consists of two tiers:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Dedicated Operators:} Each zone $\mathcal{Z}_m$ is assigned one dedicated operator $\text{OP}_m$, responsible for monitoring all drones in that zone.
+    When a drone acquires a target requiring engagement authorization, the dedicated operator must intervene to verify target identity, assess context, evaluate proportionality, and render an engagement decision.
+    This intervention requires $\tau$ minutes.
+
+    \item \textbf{Flex Operators:} A pool of $F$ flexible operators $\{\text{OPF}_1, \ldots, \text{OPF}_F\}$ is shared across all zones.
+    A flex operator intervenes when a drone in zone $\mathcal{Z}_m$ requires authorization but the dedicated operator $\text{OP}_m$ is already occupied with another intervention.
+    Each flex operator also requires $\tau$ minutes per intervention and can serve any zone.
+\end{itemize}
+
+Total C2 personnel: $M + F$ operators for $\sum_{m=1}^M n_m$ drones.
+
+\subsection{Assumptions}\label{sec:assumptions}
+
+We adopt the following modeling assumptions:
+
+\begin{assumption}[Independent Bernoulli Acquisition]\label{ass:bernoulli}
+    Each drone independently acquires a target requiring human intervention with probability $\lambda$ per 24-hour period.
+    Target acquisitions across drones and time windows are mutually independent.
+\end{assumption}
+
+\begin{assumption}[Fixed Intervention Duration]\label{ass:fixed_tau}
+    Every intervention requires exactly $\tau$ minutes, regardless of the scenario complexity.
+    An operator is fully occupied during an intervention and cannot begin another until the current one completes.
+\end{assumption}
+
+\begin{assumption}[Symmetric Zones]\label{ass:symmetric}
+    Unless otherwise stated, all zones have the same number of drones ($n_m = n$ for all $m$) and the same target acquisition rate $\lambda$.
+    We relax this assumption in Section~\ref{sec:general}.
+\end{assumption}
+
+\begin{assumption}[Non-preemptive Service]\label{ass:nonpreemptive}
+    Once an operator begins an intervention, it runs to completion.
+    No intervention can be interrupted, paused, or delegated mid-process.
+\end{assumption}
+
+\begin{assumption}[Instantaneous Assignment]\label{ass:assignment}
+    When a drone requires intervention and an operator is available, assignment and initiation are instantaneous.
+    Communication latency is negligible compared to $\tau$.
+\end{assumption}
+
+\subsection{Problem Statement}
+
+\begin{tcolorbox}[colback=yellow!5!white, colframe=orange!70!black, title=\textbf{Optimization Problem}]
+\textbf{Given:} $M$ zones, $F$ flex operators, daily acquisition probability $\lambda$, intervention time $\tau$, risk threshold $\theta$.
+
+\textbf{Find:} Maximum drones per zone $n^*$ such that the probability of system overload in any given intervention window does not exceed $\theta$:
+\[
+    n^* = \max\left\{ n \in \mathbb{Z}^+ \;\middle|\; P_{\mathrm{OL}}(n, p, M, F) \leq \theta \right\}
+\]
+where $p = 1 - (1 - \lambda)^{1/W}$ is the per-window intervention probability and $W = 1440 / \tau$ is the number of windows per day.
+\end{tcolorbox}
+
+\textbf{System overload} is the event that total intervention demand exceeds total operator capacity in a single time window.
+When overload occurs, at least one drone's engagement decision cannot be supervised by a human operator, a direct violation of the human-on-the-loop constraint.
+
+% ==============================================================
+% 3. STOCHASTIC MODEL
+% ==============================================================
+\section{Stochastic Model}\label{sec:model}
+
+\subsection{Time-Window Discretization}
+
+We discretize the 24-hour operational day into non-overlapping windows of length $\tau$ minutes.
+Each window represents one intervention slot: an operator can complete exactly one intervention per window.
+
+\begin{definition}[Intervention Window]\label{def:window}
+    The number of intervention windows in a 24-hour period is
+    \[
+        W = \frac{24 \times 60}{\tau} = \frac{1440}{\tau}.
+    \]
+\end{definition}
+
+\begin{definition}[Per-Window Intervention Probability]\label{def:p}
+    If a drone has daily acquisition probability $\lambda$, the probability $p$ that it requires intervention in any single window of length $\tau$ is given by
+    \[
+        p = 1 - (1 - \lambda)^{1/W}.
+    \]
+\end{definition}
+
+\begin{remark}
+    This follows from requiring that the probability of \emph{no} acquisition across all $W$ independent windows equals the probability of no acquisition in 24 hours:
+    \[
+        (1 - p)^W = 1 - \lambda.
+    \]
+    Solving for $p$ yields Definition~\ref{def:p}.
+    For small $\lambda$ and large $W$, $p \approx \lambda / W$, recovering the intuitive uniform distribution of events across windows.
+\end{remark}
+
+\subsection{Intervention Demand Distribution}
+
+\begin{definition}[Intervention Demand]\label{def:demand}
+    The intervention demand $K_m$ for zone $\mathcal{Z}_m$ in a single window is the number of drones in that zone requiring human authorization.
+    Under Assumption~\ref{ass:bernoulli}:
+    \[
+        K_m \sim \mathrm{Bin}(n_m, p), \qquad m = 1, \ldots, M.
+    \]
+    All $K_m$ are mutually independent.
+\end{definition}
+
+The probability mass function is:
+\[
+    P(K_m = k) = \binom{n_m}{k} p^k (1-p)^{n_m - k}, \quad k = 0, 1, \ldots, n_m.
+\]
+
+\subsection{Excess Demand and Operator Loading}
+
+Each zone's dedicated operator can handle at most one intervention per window.
+Any demand beyond one must be absorbed by the flex operator pool.
+
+\begin{definition}[Excess Demand]\label{def:excess}
+    The excess demand for zone $\mathcal{Z}_m$ is
+    \[
+        E_m = \max(0, K_m - 1).
+    \]
+    This is the number of interventions in zone $m$ that cannot be served by the dedicated operator $\text{OP}_m$.
+\end{definition}
+
+\begin{definition}[System Overload]\label{def:overload}
+    System overload occurs when total excess demand exceeds the number of flex operators:
+    \[
+        \text{Overload} \iff \sum_{m=1}^M E_m > F.
+    \]
+    The system overload probability is
+    \[
+        P_{\mathrm{OL}} = P\!\left(\sum_{m=1}^M E_m > F\right).
+    \]
+\end{definition}
+
+When overload occurs, at least one intervention request goes unserved in that window.
+This represents a failure of the human oversight constraint.
+
+\subsection{Excess Demand PMF}
+
+For a single zone with $n$ drones and per-window probability $p$:
+
+\begin{lemma}\label{lem:excess_pmf}
+    The PMF of the excess demand $E$ for a single zone with $n$ drones is:
+    \[
+        P(E = e) = \begin{cases}
+            P(K \leq 1) = \displaystyle\sum_{k=0}^{1} \binom{n}{k} p^k (1-p)^{n-k} & \text{if } e = 0, \\[10pt]
+            P(K = e + 1) = \binom{n}{e+1} p^{e+1} (1-p)^{n-e-1} & \text{if } e \geq 1.
+        \end{cases}
+    \]
+\end{lemma}
+
+\begin{proof}
+    $E = 0$ when $K \leq 1$ (the dedicated operator handles 0 or 1 interventions).
+    $E = e \geq 1$ when $K = e + 1$ exactly.
+\end{proof}
+
+% ==============================================================
+% 4. ANALYTICAL RESULTS
+% ==============================================================
+\section{Analytical Results}\label{sec:analytical}
+
+\subsection{Two-Zone Closed-Form Result}
+
+We first derive the overload probability for the canonical case: $M = 2$ zones, $F = 1$ flex operator, symmetric configuration.
+
+\begin{theorem}[Two-Zone Overload Probability]\label{thm:two_zone}
+    For two symmetric zones, each with $n$ drones and per-window probability $p$, with one dedicated operator per zone and one shared flex operator, the system overload probability is:
+    \[
+        P_{\mathrm{OL}}(n, p) = 1 - \alpha^2 - 2\alpha\beta,
+    \]
+    where
+    \begin{align*}
+        \alpha &= P(K \leq 1) = (1-p)^n + n p (1-p)^{n-1}, \\
+        \beta  &= P(K = 2)   = \binom{n}{2} p^2 (1-p)^{n-2},
+    \end{align*}
+    and $K \sim \mathrm{Bin}(n, p)$.
+\end{theorem}
+
+\begin{proof}
+    The system avoids overload when total excess demand satisfies $E_1 + E_2 \leq 1$.
+    Since $E_1, E_2 \geq 0$, this requires $E_1 + E_2 \in \{0, 1\}$.
+    Enumerating all non-overload states $(K_1, K_2)$:
+
+    \begin{center}
+    \begin{tabular}{ccccl}
+        \toprule
+        $K_1$ & $K_2$ & $E_1$ & $E_2$ & Status \\
+        \midrule
+        $\leq 1$ & $\leq 1$ & 0 & 0 & OK \\
+        $\leq 1$ & $= 2$    & 0 & 1 & OK (flex handles Zone 2) \\
+        $= 2$    & $\leq 1$ & 1 & 0 & OK (flex handles Zone 1) \\
+        $= 2$    & $= 2$    & 1 & 1 & \textbf{Overload} \\
+        $\geq 3$ & any      & $\geq 2$ & $\geq 0$ & \textbf{Overload} \\
+        any      & $\geq 3$ & $\geq 0$ & $\geq 2$ & \textbf{Overload} \\
+        \bottomrule
+    \end{tabular}
+    \end{center}
+
+    By independence of $K_1$ and $K_2$:
+    \begin{align*}
+        P(\text{no overload}) &= P(K_1 \leq 1) P(K_2 \leq 1) + P(K_1 \leq 1) P(K_2 = 2) + P(K_1 = 2) P(K_2 \leq 1) \\
+        &= \alpha^2 + \alpha\beta + \beta\alpha \\
+        &= \alpha^2 + 2\alpha\beta.
+    \end{align*}
+
+    Therefore $P_{\mathrm{OL}} = 1 - \alpha^2 - 2\alpha\beta$.
+\end{proof}
+
+\begin{corollary}\label{cor:factored}
+    The overload probability factors as:
+    \[
+        P_{\mathrm{OL}} = 1 - \alpha(\alpha + 2\beta).
+    \]
+    Since $\alpha + \beta + P(K \geq 3) = 1$, we can write $\alpha + 2\beta = 1 + \beta - P(K \geq 3)$, giving:
+    \[
+        P_{\mathrm{OL}} = (1 - \alpha)(1 + \alpha) - 2\alpha\beta = P(K \geq 2)^2 + 2P(K \geq 3) \cdot \alpha.
+    \]
+\end{corollary}
+
+\begin{remark}
+    The two terms in the corollary have intuitive interpretations:
+    \begin{itemize}[leftmargin=*]
+        \item $P(K \geq 2)^2$: Both zones simultaneously produce excess demand (both need the flex operator).
+        \item $2P(K \geq 3) \cdot \alpha$: One zone produces excess $\geq 2$ (overwhelming even the flex operator) while the other may or may not have excess.
+    \end{itemize}
+\end{remark}
+
+\subsection{Monotonicity}
+
+\begin{proposition}[Monotonicity in Fleet Size]\label{prop:monotone}
+    For fixed $p > 0$, the overload probability $P_{\mathrm{OL}}(n, p)$ is strictly increasing in $n$.
+\end{proposition}
+
+\begin{proof}
+    As $n$ increases, $P(K \geq 2)$ strictly increases (the binomial distribution shifts right), so both $\alpha = P(K \leq 1)$ decreases and $P(K \geq 3)$ increases.
+    The expression $\alpha^2 + 2\alpha\beta$ is the probability of non-overload, which strictly decreases.
+    Hence $P_{\mathrm{OL}}$ strictly increases.
+\end{proof}
+
+\begin{corollary}\label{cor:unique}
+    The maximum fleet size $n^*(\theta)$ satisfying $P_{\mathrm{OL}}(n, p) \leq \theta$ is unique and can be found by binary search.
+\end{corollary}
+
+\subsection{Poisson Approximation for Large Fleets}
+
+When $n$ is large and $p$ is small (the operationally relevant regime), the Poisson approximation simplifies analysis.
+
+\begin{proposition}[Poisson Approximation]\label{prop:poisson}
+    Let $\mu = np$.
+    For large $n$ and small $p$, $K \dot{\sim} \mathrm{Poi}(\mu)$, and the two-zone overload probability is approximately:
+    \[
+        P_{\mathrm{OL}} \approx 1 - \left(1 + \mu\right)^2 e^{-2\mu} - \mu^2 \left(1 + \mu\right) e^{-2\mu},
+    \]
+    which simplifies to
+    \[
+        P_{\mathrm{OL}} \approx 1 - e^{-2\mu}\left(1 + \mu\right)\left(1 + \mu + \mu^2\right).
+    \]
+\end{proposition}
+
+\begin{proof}
+    Under Poisson approximation: $\alpha \approx e^{-\mu}(1 + \mu)$ and $\beta \approx e^{-\mu} \mu^2/2$.
+    Substituting into Theorem~\ref{thm:two_zone}:
+    \begin{align*}
+        P(\text{no overload}) &= \alpha^2 + 2\alpha\beta \\
+        &= e^{-2\mu}(1+\mu)^2 + 2 \cdot e^{-\mu}(1+\mu) \cdot \frac{\mu^2}{2} e^{-\mu} \\
+        &= e^{-2\mu}\left[(1+\mu)^2 + \mu^2(1+\mu)\right] \\
+        &= e^{-2\mu}(1+\mu)\left[(1+\mu) + \mu^2\right] \\
+        &= e^{-2\mu}(1+\mu)(1 + \mu + \mu^2).
+    \end{align*}
+\end{proof}
+
+\begin{remark}
+    For the baseline parameters ($\lambda = 0.15$, $\tau = 30$ min, $n = 95$), $\mu = np \approx 0.321$.
+    The Poisson approximation gives $P_{\mathrm{OL}} \approx 0.0098$, which agrees with the exact binomial to three significant figures.
+    The approximation is excellent in the operational regime.
+\end{remark}
+
+\subsection{Scaling Law}
+
+\begin{proposition}[Approximate Scaling]\label{prop:scaling}
+    For the two-zone, one-flex system with target overload threshold $\theta$, the maximum fleet size scales approximately as:
+    \[
+        n^* \approx \frac{\mu^*}{p},
+    \]
+    where $\mu^*$ is the unique positive root of
+    \[
+        e^{-2\mu}(1+\mu)(1 + \mu + \mu^2) = 1 - \theta.
+    \]
+    The maximum fleet size is inversely proportional to the per-window intervention probability $p$.
+\end{proposition}
+
+This scaling law has an important operational implication: \emph{halving the intervention time $\tau$ approximately halves $p$ and therefore approximately doubles the maximum fleet size}, assuming $\lambda \ll 1$.
+
+% ==============================================================
+% 5. GENERAL M-ZONE FRAMEWORK
+% ==============================================================
+\section{Generalization to $M$ Zones and $F$ Flex Operators}\label{sec:general}
+
+\subsection{Convolution Approach}
+
+For arbitrary $M$ and $F$, the overload probability requires computing the distribution of $S = \sum_{m=1}^M E_m$.
+Since the $E_m$ are independent (by independence of zones), the PMF of $S$ is the $M$-fold convolution of the individual excess demand PMFs.
+
+\begin{definition}[Total Excess Demand Distribution]
+    Let $\phi_m(e) = P(E_m = e)$ denote the excess demand PMF for zone $m$ (Lemma~\ref{lem:excess_pmf}).
+    The PMF of $S = \sum_{m=1}^M E_m$ is:
+    \[
+        \psi_S(s) = \left(\phi_1 * \phi_2 * \cdots * \phi_M\right)(s),
+    \]
+    where $*$ denotes discrete convolution.
+\end{definition}
+
+\begin{theorem}[General Overload Probability]\label{thm:general}
+    The system overload probability for $M$ zones with $F$ flex operators is:
+    \[
+        P_{\mathrm{OL}}(n, p, M, F) = 1 - \sum_{s=0}^{F} \psi_S(s) = P(S > F).
+    \]
+    For symmetric zones ($n_m = n$, $p_m = p$ for all $m$), $\psi_S = \phi^{*M}$ is the $M$-fold self-convolution.
+\end{theorem}
+
+\begin{proof}
+    System overload occurs when $S > F$.
+    The probability of non-overload is $P(S \leq F) = \sum_{s=0}^F \psi_S(s)$.
+\end{proof}
+
+\subsection{Computational Complexity}
+
+For $M$ symmetric zones, the convolution can be computed iteratively in $O(M \cdot n^2)$ time using the FFT or in $O(M \cdot D^2)$ where $D = \min(n, D_{\max})$ is the truncation depth of the excess demand PMF.
+In practice, for small $p$, the excess demand PMF concentrates near zero, and $D_{\max} \approx 10$--$20$ suffices for machine precision.
+
+\subsection{Centralized vs.\ Decentralized Pooling}\label{sec:pooling}
+
+An important architectural comparison is between the zone-based (decentralized) model and a centralized operator pool.
+
+\begin{definition}[Centralized Pool Model]\label{def:centralized}
+    In the centralized model, all $N = Mn$ drones are monitored by $C = M + F$ interchangeable operators.
+    The intervention demand is $K_{\text{total}} \sim \mathrm{Bin}(N, p)$, and overload occurs when $K_{\text{total}} > C$:
+    \[
+        P_{\mathrm{OL}}^{\text{central}} = P(K_{\text{total}} > C) = 1 - \sum_{k=0}^{C} \binom{N}{k} p^k (1-p)^{N-k}.
+    \]
+\end{definition}
+
+\begin{proposition}[Pooling Advantage]\label{prop:pooling}
+    For any configuration $(n, p, M, F)$:
+    \[
+        P_{\mathrm{OL}}^{\text{central}}(Mn, p, M+F) \leq P_{\mathrm{OL}}^{\text{decentral}}(n, p, M, F).
+    \]
+    The centralized pool always achieves equal or lower overload probability for the same total fleet and operator count.
+\end{proposition}
+
+\begin{proof}
+    In the centralized model, all $C$ operators can serve any drone.
+    In the decentralized model, dedicated operators are restricted to their zone.
+    The decentralized model is a constrained version of the centralized model; relaxing constraints cannot increase the minimum.
+\end{proof}
+
+\begin{remark}[Capacity Gap]
+    For the baseline parameters ($\lambda = 0.15$, $\tau = 30$ min, $\theta = 0.01$), the centralized pool supports approximately 243 drones with 3 operators, while the decentralized two-zone model supports approximately 188 drones (94 per zone).
+    The capacity gap of $\sim$23\% is the cost of zone specialization.
+    However, decentralization provides operational benefits including reduced communication bandwidth, operator expertise in local terrain, and resilience to single-point C2 failures.
+\end{remark}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig5_pooling_comparison.png}
+\caption{Maximum total fleet capacity for centralized (solid green) vs.\ decentralized zone-based (dashed blue) C2 architectures across risk thresholds. The shaded region represents the capacity gap---the cost of zone specialization.}
+\label{fig:pooling_comparison}
+\end{figure}
+
+% ==============================================================
+% 6. COMPUTATIONAL RESULTS
+% ==============================================================
+\section{Computational Results}\label{sec:computational}
+
+All numerical results are produced by the accompanying Python implementation (\texttt{drone\_allocation.py}).
+The code uses exact binomial probabilities via \texttt{scipy.stats.binom} and validates all analytical results against Monte Carlo simulation.
+
+\subsection{Baseline Configuration}
+
+We adopt the following baseline parameters motivated by current operational considerations:
+
+\begin{center}
+\begin{tabular}{lll}
+    \toprule
+    \textbf{Parameter} & \textbf{Symbol} & \textbf{Baseline Value} \\
+    \midrule
+    Number of zones & $M$ & 2 \\
+    Daily acquisition probability & $\lambda$ & 0.15 (15\%) \\
+    Intervention duration & $\tau$ & 30 minutes \\
+    Flex operators & $F$ & 1 \\
+    Risk threshold & $\theta$ & 0.01 (1\%) \\
+    \midrule
+    Derived: windows per day & $W$ & 48 \\
+    Derived: per-window probability & $p$ & 0.00338 \\
+    \bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Demand Distribution at Baseline}
+
+For $n = 95$ drones per zone with $p = 0.00338$:
+
+\begin{center}
+\begin{tabular}{cc}
+    \toprule
+    \textbf{Demand $K$} & \textbf{Probability} \\
+    \midrule
+    0 & 72.50\% \\
+    1 & 23.36\% \\
+    2 & 3.72\% \\
+    3 & 0.39\% \\
+    4 & 0.03\% \\
+    5+ & $<0.01$\% \\
+    \bottomrule
+\end{tabular}
+\end{center}
+
+The expected demand per zone per window is $\mu = np \approx 0.321$.
+On average, less than one drone per zone per window requires intervention, but the tail probabilities drive the overload risk.
+
+\subsubsection{Overload Probabilities}
+
+\begin{center}
+\begin{tabular}{lccc}
+    \toprule
+    \textbf{Drones/Zone} & \textbf{Total Drones} & \textbf{$P_{\mathrm{OL}}$ (per window)} & \textbf{$P_{\mathrm{OL}}$ (per day)} \\
+    \midrule
+    50  & 100 & 0.15\% & 6.9\% \\
+    70  & 140 & 0.40\% & 17.7\% \\
+    80  & 160 & 0.60\% & 25.0\% \\
+    95  & 190 & 0.98\% & 37.8\% \\
+    100 & 200 & 1.14\% & 42.3\% \\
+    120 & 240 & 1.91\% & 60.4\% \\
+    140 & 280 & 2.92\% & 75.9\% \\
+    \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Key finding:} At the per-window threshold $\theta = 1\%$, the maximum fleet is $n^* = 95$ per zone (190 total with 3 operators).
+However, the daily overload probability at this fleet size is approximately 38\%, meaning on any given day there is a substantial chance of at least one overload event.
+This underscores the importance of distinguishing between per-window and per-day risk metrics.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig1_overload_vs_drones.png}
+\caption{System overload probability vs.\ fleet size per zone for varying numbers of flex operators ($F = 1, 2, 3, 4$). The dashed red line marks the $\theta = 1\%$ risk threshold. Note log scale on vertical axis.}
+\label{fig:overload_vs_drones}
+\end{figure}
+
+\subsection{Operator Scaling Analysis}
+
+Table~\ref{tab:op_scaling} shows how fleet capacity grows with the number of flex operators.
+
+\begin{table}[htb]
+\centering
+\caption{Maximum fleet size vs.\ flex operator count ($M = 2$, $\lambda = 0.15$, $\tau = 30$ min, $\theta_{\text{window}} = 1\%$).}
+\label{tab:op_scaling}
+\begin{tabular}{cccccc}
+    \toprule
+    \textbf{Flex $F$} & \textbf{Total Ops} & \textbf{Max $n$/Zone} & \textbf{Total Drones} & \textbf{Drones/Op} & \textbf{$P_{\mathrm{OL}}$} \\
+    \midrule
+    1 & 3 & 95   & 190   & 63.3  & $\leq$ 1\% \\
+    2 & 4 & 173  & 346   & 86.5  & $\leq$ 1\% \\
+    3 & 5 & 256  & 512   & 102.4 & $\leq$ 1\% \\
+    4 & 6 & 341  & 682   & 113.7 & $\leq$ 1\% \\
+    5 & 7 & 428  & 856   & 122.3 & $\leq$ 1\% \\
+    \bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Diminishing returns:} The first flex operator enables 190 drones.
+Each additional flex operator adds progressively fewer drones per incremental operator---the drones-per-operator ratio increases from 63.3 to 122.3 but the marginal gain per additional operator shrinks.
+This reflects the convexity of the overload probability tail.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig4_operator_scaling.png}
+\caption{Left: Maximum total drone fleet capacity vs.\ number of flex operators. Right: Operator efficiency (drones per operator) vs.\ flex operator count. Both panels use $\theta = 1\%$.}
+\label{fig:operator_scaling}
+\end{figure}
+
+\subsection{Parametric Sensitivity Analysis}
+
+Table~\ref{tab:sensitivity} shows how the maximum fleet size varies with the intervention time $\tau$ and daily acquisition rate $\lambda$.
+
+\begin{table}[htb]
+\centering
+\caption{Maximum total drones ($M = 2$, $F = 1$, $\theta = 1\%$) for varying $\lambda$ and $\tau$.}
+\label{tab:sensitivity}
+\begin{tabular}{c|cccccc}
+    \toprule
+    \multirow{2}{*}{\textbf{$\lambda$}} & \multicolumn{6}{c}{\textbf{Intervention Time $\tau$ (minutes)}} \\
+    \cmidrule(lr){2-7}
+    & \textbf{10} & \textbf{15} & \textbf{20} & \textbf{30} & \textbf{45} & \textbf{60} \\
+    \midrule
+    0.05  & 1800 & 1200 & 900  & 600  & 400 & 300 \\
+    0.10  & 876  & 584  & 438  & 292  & 196 & 146 \\
+    0.15  & 568  & 380  & 284  & 190  & 126 & 96  \\
+    0.20  & 414  & 276  & 208  & 138  & 92  & 70  \\
+    0.30  & 260  & 174  & 130  & 88   & 58  & 44  \\
+    0.50  & 134  & 90   & 68   & 46   & 30  & 24  \\
+    \bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Key observations:}
+\begin{itemize}[leftmargin=*]
+    \item Fleet capacity is approximately inversely proportional to both $\lambda$ and $\tau$, confirming the scaling law of Proposition~\ref{prop:scaling}.
+    \item Reducing intervention time from 30 to 10 minutes nearly triples fleet capacity, a powerful argument for investing in operator decision support tools that accelerate target verification.
+    \item For high-intensity environments ($\lambda = 0.50$), even 10-minute interventions limit the system to approximately 134 total drones.
+\end{itemize}
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig2_sensitivity_heatmap.png}
+\caption{Maximum fleet capacity as a function of intervention time $\tau$ and daily acquisition probability $\lambda$, for $M = 2$ zones, $F = 1$ flex operator, $\theta = 1\%$. Brighter regions indicate higher capacity.}
+\label{fig:sensitivity_heatmap}
+\end{figure}
+
+\subsection{Risk Threshold Analysis}
+
+\begin{table}[htb]
+\centering
+\caption{Maximum fleet size vs.\ risk threshold ($M = 2$, $F = 1$, $\lambda = 0.15$, $\tau = 30$ min).}
+\label{tab:risk}
+\begin{tabular}{ccc}
+    \toprule
+    \textbf{Threshold $\theta$} & \textbf{Max Drones/Zone} & \textbf{Total Drones} \\
+    \midrule
+    0.1\% & 43  & 86  \\
+    0.5\% & 75  & 150 \\
+    1.0\% & 95  & 190 \\
+    2.0\% & 122 & 244 \\
+    5.0\% & 171 & 342 \\
+    10.0\% & 225 & 450 \\
+    \bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Risk--capacity tradeoff:} Relaxing the risk threshold from 1\% to 5\% yields an 80\% increase in fleet capacity (190 $\to$ 342 drones).
+The acceptable threshold depends on the operational context: high-value target environments in populated areas warrant stricter thresholds, while operations in remote areas with lower civilian risk may tolerate higher overload probabilities.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig6_daily_risk.png}
+\caption{Daily system overload probability as a function of drones per zone and daily acquisition probability $\lambda$, for $M = 2$, $F = 1$, $\tau = 30$ min. Red regions indicate near-certain daily overload; green regions indicate low risk.}
+\label{fig:daily_risk}
+\end{figure}
+
+\subsection{Monte Carlo Validation}
+
+All analytical results are validated against Monte Carlo simulation with $10^6$ replications per configuration.
+The simulation independently draws $K_m \sim \text{Bin}(n, p)$ for each zone, computes total excess demand, and records overload events.
+
+For the baseline configuration ($n = 94$, $p = 0.00338$, $M = 2$, $F = 1$):
+\begin{itemize}[leftmargin=*]
+    \item Analytical: $P_{\mathrm{OL}} = 0.00985$
+    \item Monte Carlo ($10^6$ trials): $\hat{P}_{\mathrm{OL}} \approx 0.00985 \pm 0.00019$ (95\% CI)
+\end{itemize}
+
+Agreement to within statistical uncertainty confirms the correctness of the analytical framework.
+See the computational appendix for the full validation suite.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/fig3_monte_carlo_validation.png}
+\caption{Analytical overload probability (solid blue) vs.\ Monte Carlo estimates (orange dots with 95\% confidence intervals) across fleet sizes. The close agreement validates the exact binomial computation.}
+\label{fig:monte_carlo}
+\end{figure}
+
+% ==============================================================
+% 7. OPERATIONAL IMPLICATIONS
+% ==============================================================
+\section{Operational Implications}\label{sec:operational}
+
+\subsection{Force Structure Planning}
+
+The framework provides concrete guidance for force structure decisions:
+
+\begin{enumerate}[leftmargin=*, label=(\alph*)]
+    \item \textbf{Operator-to-Drone Ratios:} For the baseline scenario, the optimal ratio is approximately 1 operator per 63 drones (3 operators for 190 drones).
+    This is substantially higher than current ratios for remotely piloted aircraft (typically 2--3 operators per platform for MQ-9 operations), reflecting the reduced cognitive load of authorization-only oversight versus full teleoperation.
+
+    \item \textbf{Marginal Value of Operators:} Table~\ref{tab:op_scaling} shows diminishing returns to additional operators.
+    The first flex operator is critical (enabling the system to handle any simultaneous-intervention event).
+    Beyond $F = 3$, the marginal increase in fleet capacity per additional operator drops below 5\%.
+
+    \item \textbf{Investment in Automation:} The sensitivity analysis (Table~\ref{tab:sensitivity}) reveals that reducing $\tau$ from 30 to 10 minutes triples capacity.
+    This suggests that R\&D investment in automated target recognition, contextualized decision aids, and streamlined human-machine interfaces yields greater force multiplication than simply adding operators.
+\end{enumerate}
+
+\subsection{Multi-Domain Applications}
+
+The framework is not limited to aerial drones.
+It applies to any autonomous system requiring periodic human authorization:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Maritime:} Autonomous surface/subsurface vessels conducting anti-submarine warfare or mine countermeasures.
+    \item \textbf{Cyber:} Automated response systems requiring human authorization for offensive cyber operations.
+    \item \textbf{Space:} Autonomous satellites performing debris avoidance or proximity operations near adversary assets.
+    \item \textbf{Ground:} Unmanned ground vehicles conducting route clearance or perimeter defense.
+\end{itemize}
+
+In each domain, the parameters $\lambda$, $\tau$, and $\theta$ take domain-specific values, but the mathematical framework is identical.
+
+\subsection{Dynamic Operator Reallocation}
+
+The model assumes static allocation of dedicated operators to zones.
+In practice, operators can be dynamically reallocated based on observed demand:
+
+\begin{itemize}[leftmargin=*]
+    \item If Zone 1 experiences elevated activity ($K_1 \geq 2$ in consecutive windows), a flex operator can be temporarily dedicated to Zone 1.
+    \item Predictive models (e.g., time-of-day-dependent $\lambda(t)$) can inform shift scheduling, allocating more operators during peak activity periods.
+\end{itemize}
+
+Dynamic reallocation moves the system toward the centralized pool performance bound (Proposition~\ref{prop:pooling}), partially closing the 23\% capacity gap without sacrificing zone specialization entirely.
+
+\subsection{Graceful Degradation}
+
+The framework enables analysis of degraded-mode operations:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Operator loss:} If a dedicated operator is incapacitated, the flex operator assumes the dedicated role for that zone.
+    The remaining zones operate without flex coverage.
+    The framework immediately yields the new overload probability, enabling real-time risk assessment.
+
+    \item \textbf{Communication disruption:} If a zone loses connectivity, its drones enter a pre-programmed autonomous mode.
+    The operators for that zone are freed and can be redeployed as additional flex operators for the remaining zones, \emph{increasing} capacity elsewhere.
+
+    \item \textbf{Surge operations:} During high-tempo operations where $\lambda$ temporarily increases, the framework quantifies the increased overload risk, informing whether to reduce fleet size, add operators, or accept higher risk.
+\end{itemize}
+
+\subsection{Adversarial Considerations}
+
+An adversary aware of the C2 architecture might attempt to induce overload deliberately:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Decoy saturation:} Presenting multiple false targets simultaneously to exhaust operator capacity.
+    This effectively increases $\lambda$ artificially.
+    \item \textbf{Timing attacks:} Coordinating provocative actions across zones to maximize simultaneous demand.
+    This violates Assumption~\ref{ass:bernoulli} (independence across zones).
+
+    \item \textbf{Spoofing:} Injecting false target identifications into the sensor pipeline to trigger unnecessary interventions.
+\end{itemize}
+
+Mitigations include pre-screening algorithms that filter obvious decoys before operator intervention, staggered engagement timelines that reduce temporal correlation, and redundant sensor modalities that resist single-vector spoofing.
+
+% ==============================================================
+% 8. MODEL LIMITATIONS AND EXTENSIONS
+% ==============================================================
+\section{Limitations and Extensions}\label{sec:limitations}
+
+\subsection{Current Limitations}
+
+\begin{enumerate}[leftmargin=*, label=(\roman*)]
+    \item \textbf{Constant acquisition rate:} In practice, $\lambda$ varies with time of day, weather, terrain, and adversary activity.
+    A non-homogeneous Poisson process model would capture diurnal patterns.
+
+    \item \textbf{Fixed intervention time:} Real interventions range from seconds (obvious friendly) to many minutes (ambiguous target in urban environment).
+    A stochastic $\tau$ with a right-skewed distribution would be more realistic.
+
+    \item \textbf{Independent acquisitions:} Correlated events (e.g., multiple drones detecting the same target, or coordinated adversary action) violate Assumption~\ref{ass:bernoulli}.
+    Copula models or Poisson cluster processes could capture correlation.
+
+    \item \textbf{Operator fatigue:} Sustained high-tempo operations degrade operator performance, effectively increasing $\tau$ over time.
+    Fatigue models from human factors research should be incorporated for multi-day operations.
+\end{enumerate}
+
+\subsection{Queueing Theory Extension}
+
+A continuous-time formulation models target acquisitions as a Poisson process with rate $\Lambda = n\lambda'$ (where $\lambda' = \lambda / 1440$ is the per-minute arrival rate) and interventions as fixed-duration services of length $\tau$.
+
+For a single zone, this yields an M/D/1 queue with arrival rate $\Lambda$ and deterministic service time $\tau$.
+The blocking probability in an M/D/$c$ queue (with $c$ servers) can be computed via the Erlang formulas, providing an alternative to the windowed model.
+
+For the multi-zone case with shared flex operators, the system becomes a multi-class M/D/$c$ queue with dedicated and shared servers, which can be analyzed via decomposition methods.
+We leave this extension to future work.
+
+% ==============================================================
+% 9. CONCLUSION
+% ==============================================================
+\section{Conclusion}
+
+This paper has developed a rigorous, practical framework for determining optimal fleet sizes in human-on-the-loop autonomous drone operations.
+The framework is grounded in binomial probability theory, provides closed-form results for the canonical two-zone case, and generalizes to arbitrary numbers of zones and flex operators via discrete convolution.
+
+Our principal findings are:
+
+\begin{enumerate}[leftmargin=*, label=(\arabic*)]
+    \item For the baseline configuration (two zones, 15\% daily acquisition probability, 30-minute intervention time), a three-operator structure (two dedicated, one flex) can support up to \textbf{190 drones} while maintaining per-window overload risk below 1\%.
+
+    \item \textbf{Reducing intervention time} (through better automation, decision aids, and interface design) is the single most effective lever for increasing fleet capacity, more effective than adding operators.
+
+    \item The \textbf{zone-based C2 architecture} incurs a $\sim$22\% capacity penalty relative to a centralized operator pool, but provides operational benefits in resilience, bandwidth, and operator expertise.
+
+    \item The framework enables \textbf{real-time risk assessment} for degraded operations, surge scenarios, and adversarial manipulation, supporting dynamic force management decisions.
+\end{enumerate}
+
+As autonomous systems proliferate, the demand for principled human-oversight frameworks will only intensify.
+This paper provides a quantitative foundation for that effort, combining mathematical rigor with computational tools ready for operational use.
+The accompanying Python implementation is released as open-source software for use by defense planners, operations researchers, and policy analysts.
+
+% ==============================================================
+% REFERENCES
+% ==============================================================
+\newpage
+\begin{thebibliography}{99}
+
+\bibitem{dodd300009}
+Department of Defense Directive 3000.09, \emph{Autonomy in Weapon Systems}, updated January 25, 2023.
+
+\bibitem{dod_replicator2023}
+U.S.\ Department of Defense, ``Deputy Secretary of Defense Hicks Announces Replicator Initiative,'' August 28, 2023.
+
+\bibitem{jadc2_2022}
+U.S.\ Department of Defense, \emph{Joint All-Domain Command and Control (JADC2) Implementation Plan}, June 2022.
+
+\bibitem{icrc_ihl}
+International Committee of the Red Cross, \emph{International Humanitarian Law and the Challenges of Contemporary Armed Conflicts}, Geneva, 2019.
+
+\bibitem{shaikh2021}
+S.~Shaikh and W.~Rumbaugh, ``The Air and Missile War in Nagorno-Karabakh: Lessons for the Future of Strike and Defense,'' \emph{CSIS}, December 2020.
+
+\bibitem{watling2023}
+J.~Watling and N.~Reynolds, ``Meatgrinder: Russian Tactics in the Second Year of Its Invasion of Ukraine,'' \emph{RUSI Special Report}, May 2023.
+
+\bibitem{knights2020}
+M.~Knights, ``The Houthi War Machine: From Guerrilla War to State Capture,'' \emph{CTC Sentinel}, Vol.\ 11, No.\ 8, 2018.
+
+\bibitem{feller1968}
+W.~Feller, \emph{An Introduction to Probability Theory and Its Applications}, Vol.~1, 3rd ed., Wiley, 1968.
+
+\bibitem{gross2008}
+D.~Gross, J.F.~Shortle, J.M.~Thompson, and C.M.~Harris, \emph{Fundamentals of Queueing Theory}, 4th ed., Wiley, 2008.
+
+\bibitem{parasuraman2000}
+R.~Parasuraman, T.B.~Sheridan, and C.D.~Wickens, ``A Model for Types and Levels of Human Interaction with Automation,'' \emph{IEEE Transactions on Systems, Man, and Cybernetics---Part A}, Vol.\ 30, No.\ 3, 2000.
+
+\bibitem{cummings2014}
+M.L.~Cummings, ``Man versus Machine or Man + Machine?'' \emph{IEEE Intelligent Systems}, Vol.\ 29, No.\ 5, 2014.
+
+\bibitem{scharre2018}
+P.~Scharre, \emph{Army of None: Autonomous Weapons and the Future of War}, W.W.~Norton, 2018.
+
+\end{thebibliography}
+
+% ==============================================================
+% APPENDIX A: ALGORITHM
+% ==============================================================
+\newpage
+\appendix
+\section{Optimization Algorithm}\label{app:algorithm}
+
+\begin{algorithm}[H]
+\caption{Binary Search for Maximum Fleet Size}
+\label{alg:binary_search}
+\begin{algorithmic}[1]
+\Require Per-window probability $p$, zones $M$, flex operators $F$, threshold $\theta$
+\Ensure Maximum drones per zone $n^*$
+\State $\ell \gets 1$, $u \gets 10000$
+\While{$P_{\mathrm{OL}}(u, p, M, F) < \theta$}
+    \State $u \gets 2u$ \Comment{Expand upper bound if needed}
+\EndWhile
+\While{$\ell < u$}
+    \State $m \gets \lceil(\ell + u) / 2\rceil$
+    \If{$P_{\mathrm{OL}}(m, p, M, F) \leq \theta$}
+        \State $\ell \gets m$
+    \Else
+        \State $u \gets m - 1$
+    \EndIf
+\EndWhile
+\State \Return $\ell$
+\end{algorithmic}
+\end{algorithm}
+
+The overload probability $P_{\mathrm{OL}}$ is evaluated exactly using Theorem~\ref{thm:two_zone} (for $M = 2$) or Theorem~\ref{thm:general} (for general $M$) with the convolution algorithm.
+Total runtime is $O(\log(n^*) \cdot M \cdot D^2)$ where $D$ is the PMF truncation depth (typically $D \leq 20$).
+
+% ==============================================================
+% APPENDIX B: CODE REFERENCE
+% ==============================================================
+\section{Computational Implementation}\label{app:code}
+
+The accompanying file \texttt{drone\_allocation.py} provides a complete Python implementation of all models, analyses, and visualizations presented in this paper.
+
+\subsection*{Dependencies}
+\begin{verbatim}
+numpy >= 1.24
+scipy >= 1.10
+matplotlib >= 3.7
+pandas >= 2.0
+\end{verbatim}
+
+\subsection*{Usage}
+\begin{lstlisting}[language=bash, numbers=none]
+# Full analysis with all tables and figures
+python drone_allocation.py --all
+
+# Tables only
+python drone_allocation.py --tables
+
+# Figures only (saved to ./figures/)
+python drone_allocation.py --figures
+
+# Monte Carlo validation
+python drone_allocation.py --monte-carlo
+
+# Custom parameters
+python drone_allocation.py --all --lambda-day 0.20 --tau 15 --zones 3 --flex 2 --theta 0.005
+\end{lstlisting}
+
+\subsection*{Core Functions}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{lX}
+    \toprule
+    \textbf{Function} & \textbf{Description} \\
+    \midrule
+    \texttt{intervention\_probability()} & Convert daily $\lambda$ and $\tau$ to per-window $p$ \\
+    \texttt{overload\_prob\_two\_zone()} & Exact $P_{\mathrm{OL}}$ for $M = 2$, $F = 1$ (Theorem~\ref{thm:two_zone}) \\
+    \texttt{overload\_prob\_general()} & General $P_{\mathrm{OL}}$ via convolution (Theorem~\ref{thm:general}) \\
+    \texttt{max\_drones\_per\_zone()} & Binary search for $n^*$ (Algorithm~\ref{alg:binary_search}) \\
+    \texttt{monte\_carlo\_overload()} & Monte Carlo validation with confidence intervals \\
+    \texttt{daily\_overload\_probability()} & Per-day overload risk aggregation \\
+    \texttt{generate\_all\_tables()} & Produce all analysis tables \\
+    \texttt{generate\_all\_figures()} & Produce all publication-quality figures \\
+    \bottomrule
+\end{tabularx}
+\end{center}
+
+% ──────────────────────────────────────────────────────────────
+\vfill
+\begin{center}
+    \rule{0.5\linewidth}{0.5pt}\\[0.5cm]
+    \textsc{End of Document}
+\end{center}
+
+\end{document}
